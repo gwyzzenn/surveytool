@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Survey Popovers — NPS &amp; CES</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --n1:#f7f7f7;--n2:#efefef;--n3:#e3e3e3;--n4:#d0d0d0;
+  --n5:#b0b0b0;--n7:#686868;--n9:#282828;
+  --b1:#e8f0fe;--b5:#4880f0;--b6:#2563e8;--b7:#1a4fd6;--b8:#1340b8;
+  --do1:#fff0ed;--do6:#d44d2e;--do7:#b33520;
+  --g1:#e8f5e9;--g6:#43a047;--g7:#2e7d32;
+  --y1:#fffde7;--y7:#c6a600;--y8:#8d7200;
+
+  --bg:#fff;--bg-s:var(--n1);--bg-h:var(--n2);--bd:var(--n3);--bdf:var(--b5);
+  --tx:var(--n9);--tx2:var(--n7);--tx3:var(--n5);
+  --pri:var(--b6);--pri-bg:var(--b1);--pri-ho:var(--b7);
+  --ok:var(--g6);--ok-bg:var(--g1);--ok-tx:var(--g7);
+  --wa:var(--y7);--wa-bg:var(--y1);--wa-tx:var(--y8);
+  --er:var(--do6);--er-bg:var(--do1);--er-tx:var(--do7);
+
+  --r:8px;--rc:12px;--ri:6px;
+  --sh:0 4px 24px rgba(0,0,0,.09),0 0 0 1px var(--bd);
+  --sp:cubic-bezier(.34,1.56,.64,1);
+  --f:system-ui,-apple-system,'Segoe UI',Arial,sans-serif
+}
+
+html,body{
+  height:100%;
+  font-family:var(--f);
+  background:var(--bg-s);
+  color:var(--tx);
+  -webkit-font-smoothing:antialiased
+}
+
+/* ── layout ── */
+.app{
+  display:flex;
+  flex-direction:column;
+  min-height:100vh
+}
+
+/* ── tab bar ── */
+.tabs{
+  position:sticky;top:0;z-index:50;
+  background:var(--bg);
+  border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;gap:6px;
+  padding:0 24px;height:52px
+}
+.tab-lbl{
+  font-size:11px;font-weight:600;
+  color:var(--tx3);letter-spacing:.05em;text-transform:uppercase;
+  margin-right:8px
+}
+.tab{
+  display:inline-flex;align-items:center;gap:6px;
+  height:32px;padding:0 14px;
+  border:1px solid var(--bd);border-radius:var(--r);
+  font-size:13px;font-weight:500;font-family:var(--f);
+  color:var(--tx2);background:var(--bg);
+  cursor:pointer;transition:all .12s
+}
+.tab:hover{border-color:var(--n4);color:var(--tx)}
+.tab.on{background:var(--pri-bg);border-color:var(--pri);color:var(--pri)}
+.tdot{width:6px;height:6px;border-radius:50%}
+
+/* ── scene ── */
+.scene{
+  display:none;flex:1;
+  /* page background grid */
+  background-color:var(--bg-s);
+  background-image:
+    linear-gradient(var(--bd) 1px,transparent 1px),
+    linear-gradient(90deg,var(--bd) 1px,transparent 1px);
+  background-size:40px 40px
+}
+.scene.on{display:flex}
+
+.scene-inner{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  /* leave room for popover at bottom */
+  padding:60px 24px 320px
+}
+.eyebrow{
+  font-size:11px;font-weight:500;
+  color:var(--tx3);letter-spacing:.07em;text-transform:uppercase;
+  margin-bottom:8px
+}
+.scene-title{font-size:18px;font-weight:600;color:var(--tx2)}
+
+.btn-open{
+  margin-top:20px;
+  display:inline-flex;align-items:center;
+  height:36px;padding:0 18px;
+  background:var(--pri);color:#fff;
+  border:none;border-radius:var(--r);
+  font-size:14px;font-weight:500;font-family:var(--f);
+  cursor:pointer;transition:background .15s
+}
+.btn-open:hover{background:var(--pri-ho)}
+.btn-open:active{background:var(--b8)}
+
+/* ── popover anchor ── */
+.pop-anchor{
+  /* absolute within scene, bottom-right */
+  position:absolute;
+  bottom:28px;right:28px;
+  width:356px;
+  transform-origin:bottom right
+}
+
+/* each scene needs position:relative for the anchor */
+.scene{position:relative}
+
+/* animation */
+.pop-anchor.hidden{display:none}
+.pop-anchor.entering{animation:popIn .3s var(--sp) both}
+.pop-anchor.leaving{animation:popOut .18s ease-in both}
+
+@keyframes popIn{
+  from{opacity:0;transform:scale(.88) translateY(8px)}
+  to{opacity:1;transform:scale(1) translateY(0)}
+}
+@keyframes popOut{
+  to{opacity:0;transform:scale(.92) translateY(6px)}
+}
+
+/* ── card ── */
+.pop-card{
+  background:var(--bg);
+  border-radius:var(--rc);
+  box-shadow:var(--sh);
+  overflow:hidden
+}
+
+.panel{display:none}
+.panel.on{display:block}
+
+/* header */
+.ph{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px
+}
+.hl{display:flex;align-items:center;gap:7px}
+.bdot{width:6px;height:6px;border-radius:50%;background:var(--pri);flex-shrink:0}
+.htitle{font-size:13px;font-weight:600;color:var(--tx)}
+
+.xbtn{
+  width:28px;height:28px;
+  display:flex;align-items:center;justify-content:center;
+  background:none;border:none;cursor:pointer;
+  color:var(--tx3);border-radius:var(--r);
+  transition:background .12s,color .12s
+}
+.xbtn:hover{background:var(--bg-h);color:var(--tx2)}
+.xbtn:active{background:var(--n3)}
+.xbtn svg{width:13px;height:13px}
+
+.sep{height:1px;background:var(--bd)}
+
+/* body */
+.pb{
+  padding:14px;
+  display:flex;flex-direction:column;gap:12px
+}
+.pq{font-size:13px;font-weight:500;color:var(--tx);line-height:1.5}
+
+/* score grid */
+.sg{display:flex;gap:3px}
+.sb{
+  flex:1;aspect-ratio:1;
+  border:1px solid var(--bd);border-radius:var(--r);
+  background:var(--bg);
+  font-size:11px;font-weight:500;font-family:var(--f);color:var(--tx2);
+  cursor:pointer;
+  transition:border-color .1s,background .1s,color .1s,transform .12s var(--sp)
+}
+.sb:hover{border-color:var(--n4);background:var(--bg-s)}
+.sb.se{background:var(--er-bg);border:1.5px solid var(--er);color:var(--er-tx);transform:translateY(-1px)}
+.sb.sw{background:var(--wa-bg);border:1.5px solid var(--wa);color:var(--wa-tx);transform:translateY(-1px)}
+.sb.so{background:var(--ok-bg);border:1.5px solid var(--ok);color:var(--ok-tx);transform:translateY(-1px)}
+
+.slbls{display:flex;justify-content:space-between;margin-top:4px}
+.slbl{font-size:11px;color:var(--tx3)}
+
+/* tags */
+.tq{font-size:13px;font-weight:500;color:var(--tx);line-height:1.5}
+.tr{display:flex;flex-wrap:wrap;gap:5px}
+.tc{
+  display:inline-flex;align-items:center;
+  height:28px;padding:0 10px;
+  border:1px solid var(--bd);border-radius:99px;
+  font-size:12px;font-weight:500;color:var(--tx2);
+  font-family:var(--f);cursor:pointer;background:var(--bg);
+  transition:border-color .12s,background .12s,color .12s
+}
+.tc:hover{border-color:var(--n4);color:var(--tx)}
+.tc.on{background:var(--pri-bg);border-color:var(--pri);color:var(--pri)}
+
+/* effort scale */
+.er-row{display:flex;gap:4px}
+.eb{
+  flex:1;height:44px;
+  border:1px solid var(--bd);border-radius:var(--r);
+  background:var(--bg);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  transition:border-color .1s,background .1s,transform .13s var(--sp)
+}
+.eb:hover{border-color:var(--n4);background:var(--bg-s)}
+.eb.s-ok{background:var(--ok-bg);border:1.5px solid var(--ok);transform:translateY(-1px)}
+.eb.s-wa{background:var(--wa-bg);border:1.5px solid var(--wa);transform:translateY(-1px)}
+.eb.s-er{background:var(--er-bg);border:1.5px solid var(--er);transform:translateY(-1px)}
+.eb.s-ok .en{color:var(--ok-tx)}
+.eb.s-wa .en{color:var(--wa-tx)}
+.eb.s-er .en{color:var(--er-tx)}
+.ee{font-size:16px;line-height:1;pointer-events:none}
+.en{font-size:10px;font-weight:500;color:var(--tx3);pointer-events:none}
+
+/* comment */
+.cw{display:flex;flex-direction:column;gap:5px}
+.cl{font-size:12px;font-weight:500;color:var(--tx2)}
+.cb{
+  width:100%;background:var(--bg-s);
+  border:1px solid var(--bd);border-radius:var(--ri);
+  padding:9px 11px;font-size:13px;font-family:var(--f);
+  color:var(--tx);resize:none;height:64px;line-height:1.5;
+  transition:border-color .15s,box-shadow .15s
+}
+.cb:focus{outline:none;border-color:var(--bdf);box-shadow:0 0 0 3px var(--pri-bg)}
+.cb::placeholder{color:var(--tx3)}
+
+/* footer */
+.pf{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+
+.btxt{
+  display:inline-flex;align-items:center;
+  height:32px;padding:0 8px;
+  background:none;border:none;border-radius:var(--r);
+  font-size:13px;font-weight:500;font-family:var(--f);
+  color:var(--tx2);cursor:pointer;transition:background .12s
+}
+.btxt:hover{background:var(--bg-h)}
+.btxt:active{background:var(--n3)}
+
+.bsub{
+  display:inline-flex;align-items:center;
+  height:32px;padding:0 14px;
+  background:var(--pri);color:#fff;
+  border:none;border-radius:var(--r);
+  font-size:13px;font-weight:500;font-family:var(--f);
+  cursor:pointer;
+  transition:background .15s,opacity .15s;
+  opacity:.35;pointer-events:none
+}
+.bsub.rdy{opacity:1;pointer-events:auto}
+.bsub.rdy:hover{background:var(--pri-ho)}
+.bsub.rdy:active{background:var(--b8)}
+
+/* thank you */
+.ty{
+  padding:28px 16px 24px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center
+}
+.cr{
+  width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  animation:rp .38s var(--sp) both .06s
+}
+.cr.nps,.cr.cok{background:var(--ok-bg)}
+.cr.cwa{background:var(--wa-bg)}
+.cr.cer{background:var(--er-bg)}
+@keyframes rp{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+.cr svg{width:20px;height:20px}
+.cr.nps svg,.cr.cok svg{color:var(--ok-tx)}
+.cr.cwa svg{color:var(--wa-tx)}
+.cr.cer svg{color:var(--er-tx)}
+.ty-t{font-size:14px;font-weight:600;color:var(--tx)}
+.ty-s{font-size:13px;color:var(--tx2);line-height:1.6}
+
+/* close svg shared */
+.xsvg{display:block}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Tab bar -->
+  <nav class="tabs">
+    <span class="tab-lbl">Survey</span>
+    <button class="tab on" id="tNPS" onclick="sw('NPS')">
+      <span class="tdot" style="background:#2563e8"></span>NPS
+    </button>
+    <button class="tab" id="tCES" onclick="sw('CES')">
+      <span class="tdot" style="background:#43a047"></span>CES
+    </button>
+  </nav>
+
+  <!-- NPS Scene -->
+  <div class="scene on" id="sNPS">
+    <div class="scene-inner">
+      <p class="eyebrow">NPS Survey · Popover Demo</p>
+      <p class="scene-title">網頁內容區域</p>
+      <button class="btn-open" onclick="openNPS()">開啟 NPS 問卷</button>
+    </div>
+
+    <!-- NPS Popover anchored to scene -->
+    <div class="pop-anchor hidden" id="nW">
+      <div class="pop-card">
+
+        <!-- Step 1: Score -->
+        <div class="panel on" id="n1">
+          <div class="ph">
+            <div class="hl"><span class="bdot"></span><span class="htitle">給我們一點回饋</span></div>
+            <button class="xbtn" onclick="closeNPS()" aria-label="關閉">
+              <svg class="xsvg" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="sep"></div>
+          <div class="pb">
+            <p class="pq">您有多大可能向朋友或同事推薦我們的服務？</p>
+            <div>
+              <div class="sg" id="sGrid"></div>
+              <div class="slbls">
+                <span class="slbl">😕 完全不推薦</span>
+                <span class="slbl">非常推薦 😊</span>
+              </div>
+            </div>
+            <div class="pf">
+              <button class="btxt" onclick="closeNPS()">略過</button>
+              <button class="bsub" id="nNext" onclick="nStep2()">繼續</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Tags -->
+        <div class="panel" id="n2">
+          <div class="ph">
+            <div class="hl"><span class="bdot"></span><span class="htitle">告訴我們更多</span></div>
+            <button class="xbtn" onclick="closeNPS()" aria-label="關閉">
+              <svg class="xsvg" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="sep"></div>
+          <div class="pb">
+            <p class="tq" id="nTQ"></p>
+            <div class="tr" id="nTR"></div>
+            <textarea class="cb" id="nCmt" placeholder="其他補充意見（選填）"></textarea>
+            <div class="pf">
+              <button class="btxt" onclick="nSP('n1')">返回</button>
+              <button class="bsub rdy" onclick="nSubmit()">送出</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Thanks -->
+        <div class="panel" id="n3">
+          <div class="ty">
+            <div class="cr nps">
+              <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4,11 9,16 18,6"/>
+              </svg>
+            </div>
+            <p class="ty-t">感謝您的回饋！</p>
+            <p class="ty-s">您的意見對我們非常重要，<br>我們會持續改進服務品質。</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- CES Scene -->
+  <div class="scene" id="sCES">
+    <div class="scene-inner">
+      <p class="eyebrow">CES Survey · Popover Demo</p>
+      <p class="scene-title">網頁內容區域</p>
+      <button class="btn-open" onclick="openCES()">開啟 CES 問卷</button>
+    </div>
+
+    <!-- CES Popover anchored to scene -->
+    <div class="pop-anchor hidden" id="cW">
+      <div class="pop-card">
+
+        <!-- Step 1: Effort -->
+        <div class="panel on" id="c1">
+          <div class="ph">
+            <div class="hl"><span class="bdot"></span><span class="htitle">操作體驗</span></div>
+            <button class="xbtn" onclick="closeCES()" aria-label="關閉">
+              <svg class="xsvg" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="sep"></div>
+          <div class="pb">
+            <p class="pq">完成這個操作，您覺得費力程度如何？</p>
+            <div>
+              <div class="er-row" id="eRow"></div>
+              <div class="slbls">
+                <span class="slbl">😌 非常輕鬆</span>
+                <span class="slbl">😤 非常費力</span>
+              </div>
+            </div>
+            <div class="cw" id="cCW" style="display:none">
+              <p class="cl" id="cCL"></p>
+              <textarea class="cb" id="cCmt" placeholder="歡迎分享您的想法…"></textarea>
+            </div>
+            <div class="pf">
+              <button class="btxt" onclick="closeCES()">略過</button>
+              <button class="bsub" id="cSub" onclick="cSubmit()">送出</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Thanks -->
+        <div class="panel" id="c2">
+          <div class="ty">
+            <div class="cr" id="cRing">
+              <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4,11 9,16 18,6"/>
+              </svg>
+            </div>
+            <p class="ty-t" id="cTT"></p>
+            <p class="ty-s" id="cTS"></p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Data ──
+var NTAGS = {
+  detractor: ['流程步驟太多','系統不穩','查找資訊困難','等待時間過長','權限申請麻煩','找不到功能'],
+  passive:   ['功能尚可','偶有小問題','希望更多功能','UI 可更直覺','操作需要適應','有些步驟可簡化'],
+  promoter:  ['功能強大','操作直覺','流程順暢','穩定可靠','更新積極','節省工作時間','提高工作效率']
+};
+var NQ = {
+  detractor: '很遺憾聽到這個評分，哪些方面令您不滿意？',
+  passive:   '謝謝評分，哪些方面還有改進空間？',
+  promoter:  '太棒了！是什麼讓您喜歡我們的服務？'
+};
+var CSCALE = [
+  {s:1,e:'🤩'},{s:2,e:'😄'},{s:3,e:'🙂'},
+  {s:4,e:'😊'},{s:5,e:'😶'},{s:6,e:'😣'},{s:7,e:'😤'}
+];
+var CTHANKS = {
+  cok: {t:'很高興聽到這個！',  s:'輕鬆順暢的體驗是我們努力的目標。'},
+  cwa: {t:'感謝您的回饋！',    s:'我們會持續找出可以改善的地方。'},
+  cer: {t:'很抱歉造成困擾。',  s:'您的回饋會直接幫助我們優化這個流程。'}
+};
+var CCOMMENT = {
+  cok: {l:'還有其他想說的嗎？（選填）',       p:'歡迎分享您的想法…'},
+  cwa: {l:'有什麼地方可以做得更好？（選填）', p:'任何想法都歡迎…'},
+  cer: {l:'哪個步驟讓您覺得困難？（選填）',   p:'描述遇到的問題，我們會認真閱讀…'}
+};
+
+var nScore = null;
+var cSel   = null;
+
+// ── Tab switch ──
+function sw(t) {
+  document.getElementById('sNPS').classList.toggle('on', t === 'NPS');
+  document.getElementById('sCES').classList.toggle('on', t === 'CES');
+  document.getElementById('tNPS').classList.toggle('on', t === 'NPS');
+  document.getElementById('tCES').classList.toggle('on', t === 'CES');
+  closeNPS();
+  closeCES();
+}
+
+// ── NPS: build score grid ──
+(function() {
+  var grid = document.getElementById('sGrid');
+  for (var i = 0; i <= 10; i++) {
+    (function(score) {
+      var b = document.createElement('button');
+      b.className = 'sb';
+      b.textContent = score;
+      b.addEventListener('click', function() {
+        document.querySelectorAll('.sb').forEach(function(x) {
+          x.classList.remove('se','sw','so');
+        });
+        b.classList.add(score <= 6 ? 'se' : score <= 8 ? 'sw' : 'so');
+        nScore = score;
+        document.getElementById('nNext').classList.add('rdy');
+      });
+      grid.appendChild(b);
+    })(i);
+  }
+})();
+
+function nSP(id) {
+  document.querySelectorAll('#nW .panel').forEach(function(p) { p.classList.remove('on'); });
+  document.getElementById(id).classList.add('on');
+}
+
+function openNPS() {
+  var w = document.getElementById('nW');
+  w.classList.remove('hidden','leaving');
+  w.classList.add('entering');
+  w.addEventListener('animationend', function() { w.classList.remove('entering'); }, {once:true});
+}
+
+function closeNPS() {
+  var w = document.getElementById('nW');
+  if (w.classList.contains('hidden')) return;
+  w.classList.add('leaving');
+  w.addEventListener('animationend', function() {
+    w.classList.add('hidden');
+    w.classList.remove('leaving');
+    nScore = null;
+    document.querySelectorAll('.sb').forEach(function(b) { b.classList.remove('se','sw','so'); });
+    document.getElementById('nNext').classList.remove('rdy');
+    document.getElementById('nCmt').value = '';
+    nSP('n1');
+  }, {once:true});
+}
+
+function nStep2() {
+  if (nScore === null) return;
+  var cat = nScore <= 6 ? 'detractor' : nScore <= 8 ? 'passive' : 'promoter';
+  document.getElementById('nTQ').textContent = NQ[cat];
+  var row = document.getElementById('nTR');
+  row.innerHTML = '';
+  NTAGS[cat].forEach(function(label) {
+    var c = document.createElement('button');
+    c.className = 'tc';
+    c.textContent = label;
+    c.addEventListener('click', function() { c.classList.toggle('on'); });
+    row.appendChild(c);
+  });
+  nSP('n2');
+}
+
+function nSubmit() {
+  nSP('n3');
+  setTimeout(closeNPS, 2800);
+}
+
+// ── CES: build effort row ──
+(function() {
+  var row = document.getElementById('eRow');
+  CSCALE.forEach(function(item) {
+    (function(s, e) {
+      var b = document.createElement('button');
+      b.className = 'eb';
+      b.innerHTML = '<span class="ee">' + e + '</span><span class="en">' + s + '</span>';
+      b.addEventListener('click', function() {
+        document.querySelectorAll('.eb').forEach(function(x) {
+          x.classList.remove('s-ok','s-wa','s-er');
+        });
+        var cat = s <= 2 ? 'cok' : s <= 4 ? 'cwa' : 'cer';
+        var cls = cat === 'cok' ? 's-ok' : cat === 'cwa' ? 's-wa' : 's-er';
+        b.classList.add(cls);
+        cSel = s;
+        document.getElementById('cCW').style.display = 'flex';
+        document.getElementById('cCL').textContent = CCOMMENT[cat].l;
+        document.getElementById('cCmt').placeholder = CCOMMENT[cat].p;
+        document.getElementById('cSub').classList.add('rdy');
+      });
+      row.appendChild(b);
+    })(item.s, item.e);
+  });
+})();
+
+function openCES() {
+  var w = document.getElementById('cW');
+  w.classList.remove('hidden','leaving');
+  w.classList.add('entering');
+  w.addEventListener('animationend', function() { w.classList.remove('entering'); }, {once:true});
+}
+
+function closeCES() {
+  var w = document.getElementById('cW');
+  if (w.classList.contains('hidden')) return;
+  w.classList.add('leaving');
+  w.addEventListener('animationend', function() {
+    w.classList.add('hidden');
+    w.classList.remove('leaving');
+    cSel = null;
+    document.querySelectorAll('.eb').forEach(function(b) { b.classList.remove('s-ok','s-wa','s-er'); });
+    document.getElementById('cCW').style.display = 'none';
+    document.getElementById('cCmt').value = '';
+    document.getElementById('cSub').classList.remove('rdy');
+    document.querySelectorAll('#cW .panel').forEach(function(p) { p.classList.remove('on'); });
+    document.getElementById('c1').classList.add('on');
+  }, {once:true});
+}
+
+function cSubmit() {
+  if (!cSel) return;
+  var cat = cSel <= 2 ? 'cok' : cSel <= 4 ? 'cwa' : 'cer';
+  document.getElementById('cRing').className = 'cr ' + cat;
+  document.getElementById('cTT').textContent = CTHANKS[cat].t;
+  document.getElementById('cTS').textContent = CTHANKS[cat].s;
+  document.querySelectorAll('#cW .panel').forEach(function(p) { p.classList.remove('on'); });
+  document.getElementById('c2').classList.add('on');
+  setTimeout(closeCES, 2800);
+}
+</script>
+</body>
+</html>
